@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 from . import language as tl
 from . import runtime
 
+import torch
 
 def nvsmi(attrs):
     attrs = ','.join(attrs)
@@ -94,8 +95,8 @@ def do_bench_cudagraph(fn, rep=20, grad_to_none=None, quantiles=None, return_mod
             fn()
         end_event.record()
         torch.cuda.synchronize()
-        estimate_ms = start_event.elapsed_time(end_event) / 5
-        n_repeat = max(1, int(rep / estimate_ms))
+        #estimate_ms = start_event.elapsed_time(end_event) / 5
+        n_repeat = rep #max(1, int(rep / estimate_ms))
         # step 2 - construct a cuda graph with `n_repeat` unrolled function calls to minimize
         # host overhead
         g = torch.cuda.CUDAGraph()
@@ -144,23 +145,14 @@ def do_bench(fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, return_m
 
     fn()
     di.synchronize()
+    torch.distributed.barrier()
 
     cache = runtime.driver.active.get_empty_cache_for_benchmark()
 
-    # Estimate the runtime of the function
-    start_event = di.Event(enable_timing=True)
-    end_event = di.Event(enable_timing=True)
-    start_event.record()
-    for _ in range(5):
-        runtime.driver.active.clear_cache(cache)
-        fn()
-    end_event.record()
-    di.synchronize()
-    estimate_ms = start_event.elapsed_time(end_event) / 5
-
     # compute number of warmup and repeat
-    n_warmup = max(1, int(warmup / estimate_ms))
-    n_repeat = max(1, int(rep / estimate_ms))
+    n_warmup = warmup #max(1, int(warmup / estimate_ms))
+    n_repeat = rep #max(1, int(rep / estimate_ms))
+
     start_event = [di.Event(enable_timing=True) for i in range(n_repeat)]
     end_event = [di.Event(enable_timing=True) for i in range(n_repeat)]
     # Warm-up
@@ -182,6 +174,7 @@ def do_bench(fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, return_m
         end_event[i].record()
     # Record clocks
     di.synchronize()
+    torch.distributed.barrier()
     times = [s.elapsed_time(e) for s, e in zip(start_event, end_event)]
     return _summarize_statistics(times, quantiles, return_mode)
 

@@ -12,6 +12,8 @@ from .jit import KernelInterface
 from .errors import OutOfResources, PTXASError
 from .driver import driver
 
+import torch
+
 
 class Autotuner(KernelInterface):
 
@@ -225,6 +227,11 @@ class Autotuner(KernelInterface):
                     bench_end = time.time()
                     self.bench_time = bench_end - bench_start
                     self.cache[key] = builtins.min(timings, key=timings.get)
+                    idx = self.configs.index(self.cache[key])
+                    print(f"index={idx}")
+                    tensor_idx = torch.tensor(idx).cuda()
+                    torch.distributed.broadcast(tensor_idx, src=0)
+                    self.cache[key] = self.configs[tensor_idx.item()]
                     full_nargs = {**self.nargs, **kwargs, **self.cache[key].all_kwargs()}
                     self.pre_hook(full_nargs, reset_only=True)
                     self.configs_timings = timings
