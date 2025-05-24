@@ -676,6 +676,9 @@ class pointer_type(dtype):
         if not isinstance(other, pointer_type):
             return False
         return self.element_ty == other.element_ty and self.address_space == other.address_space and self.const == other.const
+    
+    def __hash__(self):
+        return hash((self.name, ))
 
     @property
     def scalar(self):
@@ -721,9 +724,6 @@ class block_type(dtype):
         if not isinstance(other, block_type):
             return False
         return self.element_ty == other.element_ty and self.shape == other.shape
-    
-    def __hash__(self):
-        return hash((self.name, ))
 
     @property
     def scalar(self):
